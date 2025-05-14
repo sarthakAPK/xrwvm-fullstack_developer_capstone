@@ -1,25 +1,66 @@
-# Uncomment the following imports before adding the Model code
+from django.db import models
+from django.utils.timezone import now
+from django.core.validators import MaxValueValidator, MinValueValidator
 
-# from django.db import models
-# from django.utils.timezone import now
-# from django.core.validators import MaxValueValidator, MinValueValidator
+class CarMake(models.Model):
+    name = models.CharField(max_length=100)
+    description = models.TextField()
+    founded_year = models.IntegerField(
+        validators=[MinValueValidator(1900), MaxValueValidator(now().year)],
+        null=True,
+        blank=True
+    )
+    headquarters = models.CharField(max_length=100, blank=True)
+    website = models.URLField(blank=True)
 
+    def __str__(self):
+        return self.name
 
-# Create your models here.
+class CarModel(models.Model):
+    CAR_TYPES = [
+        ('SEDAN', 'Sedan'),
+        ('SUV', 'SUV'),
+        ('WAGON', 'Wagon'),
+        ('COUPE', 'Coupe'),
+        ('CONVERTIBLE', 'Convertible'),
+        ('TRUCK', 'Truck'),
+        ('VAN', 'Van'),
+        ('HATCHBACK', 'Hatchback'),
+    ]
 
-# <HINT> Create a Car Make model `class CarMake(models.Model)`:
-# - Name
-# - Description
-# - Any other fields you would like to include in car make model
-# - __str__ method to print a car make object
+    # Required fields
+    car_make = models.ForeignKey(CarMake, on_delete=models.CASCADE)
+    dealer_id = models.IntegerField(help_text="ID referencing a dealer in Cloudant database")
+    name = models.CharField(max_length=100)
+    type = models.CharField(max_length=20, choices=CAR_TYPES, default='SUV')
+    year = models.IntegerField(
+        validators=[
+            MinValueValidator(2015),
+            MaxValueValidator(now().year + 1)  # Current year + 1 for upcoming models
+        ]
+    )
+    
+    # Additional useful fields
+    engine = models.CharField(max_length=50, blank=True)
+    trim_level = models.CharField(max_length=50, blank=True)
+    color = models.CharField(max_length=50, blank=True)
+    mileage = models.IntegerField(
+        blank=True,
+        null=True,
+        validators=[MinValueValidator(0)]
+    )
+    price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        blank=True,
+        null=True,
+        validators=[MinValueValidator(0)]
+    )
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
-
-# <HINT> Create a Car Model model `class CarModel(models.Model):`:
-# - Many-To-One relationship to Car Make model (One Car Make has many
-# Car Models, using ForeignKey field)
-# - Name
-# - Type (CharField with a choices argument to provide limited choices
-# such as Sedan, SUV, WAGON, etc.)
-# - Year (IntegerField) with min value 2015 and max value 2023
-# - Any other fields you would like to include in car model
-# - __str__ method to print a car make object
+    def __str__(self):
+        return f"{self.car_make.name} {self.name} ({self.year})"
+        

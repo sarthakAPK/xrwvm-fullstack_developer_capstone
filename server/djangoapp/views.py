@@ -1,5 +1,10 @@
-# Uncomment the required imports before adding the code
-
+from django.http import JsonResponse
+from django.contrib.auth import login, authenticate
+import logging
+import json
+from django.views.decorators.csrf import csrf_exempt
+from .models import CarMake, CarModel
+from .populate import initiate  # Uncomment if you have this function
 # from django.shortcuts import render
 # from django.http import HttpResponseRedirect, HttpResponse
 # from django.contrib.auth.models import User
@@ -8,58 +13,107 @@
 # from django.contrib import messages
 # from datetime import datetime
 
-from django.http import JsonResponse
-from django.contrib.auth import login, authenticate
-import logging
-import json
-from django.views.decorators.csrf import csrf_exempt
-# from .populate import initiate
-
-
 # Get an instance of a logger
 logger = logging.getLogger(__name__)
 
+def get_cars(request):
+    count = CarMake.objects.count()
+    print(count)
+    if count == 0:
+        from .populate import initiate
+        initiate()  # This will auto-populate when first accessed
+    
+    # Uncomment if you need to populate initial data
+    # if count == 0:
+    #     initiate()
+    
+    car_models = CarModel.objects.select_related('car_make')
+    cars = []
+    for car_model in car_models:
+        cars.append({
+            "CarModel": car_model.name, 
+            "CarMake": car_model.car_make.name,
+            "Year": car_model.year,
+            "Type": car_model.type,
+            "DealerId": car_model.dealer_id
+        })
+    return JsonResponse({"CarModels": cars})
 
-# Create your views here.
-
-# Create a `login_request` view to handle sign in request
 @csrf_exempt
 def login_user(request):
-    # Get username and password from request.POST dictionary
+    """Handles user login requests"""
     data = json.loads(request.body)
     username = data['userName']
     password = data['password']
-    # Try to check if provide credential can be authenticated
     user = authenticate(username=username, password=password)
     data = {"userName": username}
     if user is not None:
-        # If user is valid, call login method to login current user
         login(request, user)
         data = {"userName": username, "status": "Authenticated"}
     return JsonResponse(data)
 
-# Create a `logout_request` view to handle sign out request
-# def logout_request(request):
-# ...
+# Uncomment and implement these as needed:
 
-# Create a `registration` view to handle sign up request
+# def logout_request(request):
+#     logout(request)
+#     return redirect('djangoapp:index')
+
 # @csrf_exempt
 # def registration(request):
-# ...
+#     data = json.loads(request.body)
+#     username = data['userName']
+#     password = data['password']
+#     first_name = data['firstName']
+#     last_name = data['lastName']
+#     email = data['email']
+#     username_exist = False
+#     try:
+#         User.objects.get(username=username)
+#         username_exist = True
+#     except:
+#         logger.debug("{} is new user".format(username))
+#     if not username_exist:
+#         user = User.objects.create_user(
+#             username=username, first_name=first_name, last_name=last_name,
+#             password=password, email=email
+#         )
+#         login(request, user)
+#         data = {"userName": username, "status": "Authenticated"}
+#         return JsonResponse(data)
+#     else:
+#         data = {"userName": username, "error": "Already Registered"}
+#         return JsonResponse(data)
 
-# # Update the `get_dealerships` view to render the index page with
-# a list of dealerships
 # def get_dealerships(request):
-# ...
+#     context = {}
+#     if request.method == "GET":
+#         return render(request, 'djangoapp/index.html', context)
 
-# Create a `get_dealer_reviews` view to render the reviews of a dealer
-# def get_dealer_reviews(request,dealer_id):
-# ...
+# def get_dealer_reviews(request, dealer_id):
+#     if request.method == "GET":
+#         context = {
+#             "reviews": [],
+#             "dealer_id": dealer_id
+#         }
+#         return render(request, 'djangoapp/dealer_details.html', context)
 
-# Create a `get_dealer_details` view to render the dealer details
 # def get_dealer_details(request, dealer_id):
-# ...
+#     if request.method == "GET":
+#         context = {
+#             "dealer": {},
+#             "dealer_id": dealer_id
+#         }
+#         return render(request, 'djangoapp/dealer_details.html', context)
 
-# Create a `add_review` view to submit a review
 # def add_review(request):
-# ...
+#     if request.method == "POST":
+#         if request.user.is_authenticated:
+#             form = ReviewForm(request.POST)
+#             if form.is_valid():
+#                 review = form.save(commit=False)
+#                 review.car_model = CarModel.objects.get(pk=request.POST['car'])
+#                 review.dealership = dealer_id
+#                 review.user = request.user
+#                 review.save()
+#                 return redirect("djangoapp:dealer_details", dealer_id=dealer_id)
+#     return redirect("djangoapp:index")
