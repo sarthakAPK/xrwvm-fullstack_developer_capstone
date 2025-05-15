@@ -5,6 +5,7 @@ import json
 from django.views.decorators.csrf import csrf_exempt
 from .models import CarMake, CarModel
 from .populate import initiate  # Uncomment if you have this function
+from .restapis import get_request, analyze_review_sentiments  # Import required functions
 # from django.shortcuts import render
 # from django.http import HttpResponseRedirect, HttpResponse
 # from django.contrib.auth.models import User
@@ -22,10 +23,6 @@ def get_cars(request):
     if count == 0:
         from .populate import initiate
         initiate()  # This will auto-populate when first accessed
-    
-    # Uncomment if you need to populate initial data
-    # if count == 0:
-    #     initiate()
     
     car_models = CarModel.objects.select_related('car_make')
     cars = []
@@ -52,6 +49,70 @@ def login_user(request):
         data = {"userName": username, "status": "Authenticated"}
     return JsonResponse(data)
 
+def get_dealerships(request, state="All"):
+    """Get dealerships - all by default or filtered by state"""
+    if state == "All":
+        endpoint = "/fetchDealers"
+    else:
+        endpoint = "/fetchDealers/"+state
+    dealerships = get_request(endpoint)
+    return JsonResponse({"status":200, "dealers":dealerships})
+
+def get_dealer_details(request, dealer_id):
+    """Get details for a specific dealer"""
+    if dealer_id:
+        endpoint = "/fetchDealer/"+str(dealer_id)
+        dealership = get_request(endpoint)
+        return JsonResponse({"status":200, "dealer":dealership})
+    else:
+        return JsonResponse({"status":400, "message":"Bad Request"})
+
+def get_dealer_reviews(request, dealer_id):
+    """Get reviews for a specific dealer with sentiment analysis"""
+    if dealer_id:
+        endpoint = "/fetchReviews/dealer/"+str(dealer_id)
+        reviews = get_request(endpoint)
+        for review_detail in reviews:
+            response = analyze_review_sentiments(review_detail['review'])
+            print(response)
+            review_detail['sentiment'] = response['sentiment']
+        return JsonResponse({"status":200, "reviews":reviews})
+    else:
+        return JsonResponse({"status":400, "message":"Bad Request"})
+
+@csrf_exempt  # Add this decorator to allow POST requests
+def add_review(request):
+    """Handle POST requests to add new reviews"""
+    if request.user.is_authenticated:  # Better authentication check
+        try:
+            # Parse JSON data from request body
+            data = json.loads(request.body)
+            
+            # Call post_review function with the data
+            response = post_review(data)
+            print("Review post response:", response)  # Debug logging
+            
+            return JsonResponse({
+                "status": 200,
+                "message": "Review posted successfully",
+                "response": response
+            })
+        except json.JSONDecodeError:
+            return JsonResponse({
+                "status": 400,
+                "message": "Invalid JSON data"
+            }, status=400)
+        except Exception as e:
+            print("Error posting review:", str(e))
+            return JsonResponse({
+                "status": 400,
+                "message": "Error posting review"
+            }, status=400)
+    else:
+        return JsonResponse({
+            "status": 403,
+            "message": "Unauthorized - Please log in"
+        }, status=403)
 # Uncomment and implement these as needed:
 
 # def logout_request(request):
@@ -83,37 +144,3 @@ def login_user(request):
 #     else:
 #         data = {"userName": username, "error": "Already Registered"}
 #         return JsonResponse(data)
-
-# def get_dealerships(request):
-#     context = {}
-#     if request.method == "GET":
-#         return render(request, 'djangoapp/index.html', context)
-
-# def get_dealer_reviews(request, dealer_id):
-#     if request.method == "GET":
-#         context = {
-#             "reviews": [],
-#             "dealer_id": dealer_id
-#         }
-#         return render(request, 'djangoapp/dealer_details.html', context)
-
-# def get_dealer_details(request, dealer_id):
-#     if request.method == "GET":
-#         context = {
-#             "dealer": {},
-#             "dealer_id": dealer_id
-#         }
-#         return render(request, 'djangoapp/dealer_details.html', context)
-
-# def add_review(request):
-#     if request.method == "POST":
-#         if request.user.is_authenticated:
-#             form = ReviewForm(request.POST)
-#             if form.is_valid():
-#                 review = form.save(commit=False)
-#                 review.car_model = CarModel.objects.get(pk=request.POST['car'])
-#                 review.dealership = dealer_id
-#                 review.user = request.user
-#                 review.save()
-#                 return redirect("djangoapp:dealer_details", dealer_id=dealer_id)
-#     return redirect("djangoapp:index")
